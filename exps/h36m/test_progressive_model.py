@@ -13,7 +13,7 @@ from model.model import PGCAGC_V2
 from model.velocity import GRUAutoencoder
 from utils.skeletons import SkeletonH36M as Skeleton
 
-from utils.functional import gen_velocity
+from utils.functional import gen_velocity, read_config
 
 sys.path.append(".")
 
@@ -165,18 +165,15 @@ if __name__ == "__main__":
     parser.add_argument('--main_model_chkpt', required=True)
     parser.add_argument('--ae_ckpt', required=True)
     parser.add_argument('--data_dir', required=True)
+    parser.add_argument('--model_cfg', required=True)
     args = parser.parse_args()
     milestones = [3000, 5000]
     skeleton = Skeleton()
+    cfg = read_config(args.model_cfg)
+    model_cfg = cfg['model']
     model = PGCAGC_V2(
         skeleton=skeleton,
-        milestones=milestones,
-        is_mask_trainable=True,
-        levels=[1, 1, 1],
-        normalize_adj_mask=False,
-        local_window=3,
-        dyna_layers=[4, 4, 8],
-        layer_norm_axis="spatial",
+        **model_cfg
     )
     
     prog_model_ckpt_file = args.main_model_chkpt
@@ -200,7 +197,8 @@ if __name__ == "__main__":
     state_dict = torch.load(ckpt)
     velocity_ae.load_state_dict(state_dict=state_dict)
 
-    # velocity_ae.eval()
+    velocity_ae.eval()
+    model.eval()
 
     dataset = H36MEval(
         data_dir=args.data_dir,
