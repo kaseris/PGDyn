@@ -1,0 +1,28 @@
+model:
+  milestones: [1000, 2000]
+  n_joints: [9, 13, 18]
+  skeleton_resolution: ["small", "medium", "full"]
+  normalize_adj_mask:  false
+  local_window: 5
+  seq_len: 50
+  target_len: 25
+  dims: 3
+  levels: [1, 1, 1]
+  is_mask_trainable: true
+  dyna_layers: [4, 4, 8]
+  layer_norm_axis: "spatial"
+
+training:
+  current_lr: 6.0e-4
+  max_iters: 50100
+  save_every: 1000
+  print_every: 100
+  alpha: 0.2
+  lrs: [1.0e-5, 5.0e-6]
+  lr_change_steps: [15000, 20000]
+
+data:
+  data_aug: true
+  amass_input_length: 50
+  amass_target_length: 25
+  batch_size: 256
