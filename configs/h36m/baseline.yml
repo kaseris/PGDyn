@@ -11,3 +11,18 @@ model:
   is_mask_trainable: true
   dyna_layers: [4, 4, 8]
   layer_norm_axis: "spatial"
+
+training:
+  current_lr: 6.0e-4
+  max_iters: 50100
+  save_every: 1000
+  print_every: 100
+  alpha: 0.2
+  lrs: [1.0e-5, 5.0e-6]
+  lr_change_steps: [15000, 20000]
+
+data:
+  data_aug: true
+  h36m_input_length: 50
+  h36m_target_length_train: 25
+  batch_size: 256
