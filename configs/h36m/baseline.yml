@@ -1,0 +1,13 @@
+model:
+  milestones: [1000, 2000]
+  n_joints: [8, 13, 22]
+  skeleton_resolution: ["small", "medium", "full"]
+  normalize_adj_mask:  false
+  local_window: 5
+  seq_len: 50
+  target_len: 25
+  dims: 3
+  levels: [1, 1, 1]
+  is_mask_trainable: true
+  dyna_layers: [4, 4, 8]
+  layer_norm_axis: "spatial"
