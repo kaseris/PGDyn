@@ -1,4 +1,7 @@
 datasets
+runs/h36m/*
+runs/amass/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
