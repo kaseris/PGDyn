@@ -3,6 +3,7 @@ import os
 import sys
 
 import randomname
+import yaml
 import torch
 import torch.nn.functional as F
 
@@ -129,8 +130,8 @@ if __name__ == "__main__":
     exp_path = os.path.join(f'runs/h36m/{experiment_name+"_"+now}')
     os.mkdir(exp_path)
     cfg = read_config(args.model_cfg)
-    with open(f'{os.path.join(exp_path, "config.txt")}', 'w') as f:
-        f.write(str(cfg))
+    with open(os.path.join(exp_path, "config.yaml"), 'w') as f:
+        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
     model_cfg = cfg['model']
 
