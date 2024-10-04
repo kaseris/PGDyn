@@ -1,3 +1,11 @@
+Train the model on AMASS:
+```bash
+PYTHONPATH=. python exps/amass/train_progressive_model.py \
+--data_dir /media/kaseris/FastData3/amass \
+--model_cfg configs/amass/baseline.yml \
+--gru_ae_ckpt pretrained_models/amass/gru_velocity_amass.pt 
+```
+
 Train the model on H3.6m:
 ```bash
 PYTHONPATH=. python exps/h36m/train_progressive_model.py \
