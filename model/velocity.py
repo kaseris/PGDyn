@@ -46,7 +46,7 @@ class MLP(nn.Module):
 
 
 class GRUAutoencoder(nn.Module):
-    def __init__(self, nx, ny, horizon, specs):
+    def __init__(self, nx, ny, horizon, specs, num_layers):
         super(GRUAutoencoder, self).__init__()
         self.nx = nx
         self.ny = ny
@@ -58,8 +58,8 @@ class GRUAutoencoder(nn.Module):
         self.nh_mlp = nh_mlp = specs.get("nh_mlp", [300, 200])
 
         # Encoder
-        self.x_rnn = RNN(nx, nh_rnn, bi_dir=self.x_birnn, cell_type="gru")
-        self.e_rnn = RNN(ny, nh_rnn, bi_dir=self.e_birnn, cell_type="gru")
+        self.x_rnn = RNN(nx, nh_rnn, bi_dir=self.x_birnn, cell_type="gru", num_layers=num_layers)
+        self.e_rnn = RNN(ny, nh_rnn, bi_dir=self.e_birnn, cell_type="gru", num_layers=num_layers)
         self.e_mlp = MLP(2 * nh_rnn, nh_mlp)
         self.e_out = nn.Linear(self.e_mlp.out_dim, nh_rnn)
 
@@ -113,21 +113,22 @@ class GRUAutoencoder(nn.Module):
 class LatentVelocityProjection(nn.Module):
     def __init__(
         self,
-        nx: int = 66,
-        ny: int = 66,
+        nx: int = 54,
+        ny: int = 54,
         horizon: int = 24,
         nh_rnn: int = 128,
         bi_dir_e_rnn: bool = True,
         bi_dir_x_rnn: bool = True,
         nh_mlp: List = [512, 512],
+        num_layers: int = 3
     ):
         super().__init__()
         self.nx = nx
         self.ny = ny
         self.horizon = horizon
 
-        self.x_rnn = RNN(nx, nh_rnn, bi_dir=bi_dir_x_rnn, cell_type="gru", num_layers=2)
-        self.e_rnn = RNN(ny, nh_rnn, bi_dir=bi_dir_e_rnn, cell_type="gru", num_layers=2)
+        self.x_rnn = RNN(nx, nh_rnn, bi_dir=bi_dir_x_rnn, cell_type="gru", num_layers=num_layers)
+        self.e_rnn = RNN(ny, nh_rnn, bi_dir=bi_dir_e_rnn, cell_type="gru", num_layers=num_layers)
 
         self.e_mlp = MLP(2 * nh_rnn, nh_mlp)
         self.e_out = nn.Linear(self.e_mlp.out_dim, nh_rnn)
