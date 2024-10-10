@@ -32,6 +32,9 @@ class PGCAGC_V2(nn.Module):
         milestones: list = [20000, 40000],
         dyna_layers: list = [2, 4, 8],
         layer_norm_axis: str = "spatial",
+        nh_rnn: int = 512,
+        nh_mlp: List = [512, 1024],
+        lvp_num_rnn_layers: int = 3,
     ) -> None:
         super().__init__()
         self.skeleton = skeleton
@@ -128,7 +131,7 @@ class PGCAGC_V2(nn.Module):
         self.vel_dl = ResolutionLevelV2(
             mlp=self.mlp_v,
             skeleton=skeleton,
-            n_joints=22,
+            n_joints=len(self.skeleton.full),
             skeleton_resolution="full",
             normalize_adj_mask=False,
             local_window=3,
@@ -137,7 +140,8 @@ class PGCAGC_V2(nn.Module):
             layer_norm_axis="spatial",
             n_dynamic_layers=4,
         )
-        self.lvp = LatentVelocityProjection()
+        # Need to parameterize them, for H36m nhrnn=128, nh_mlp[128, 256]
+        self.lvp = LatentVelocityProjection(nx=len(self.skeleton.full) * 3, ny=len(self.skeleton.full) * 3, nh_rnn=nh_rnn, nh_mlp=nh_mlp, num_layers=lvp_num_rnn_layers)
 
     def forward(self, x: torch.Tensor, iter):
         """The input is supposed to be the raw batch as drawn from the data loader. That is,
