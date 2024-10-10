@@ -11,7 +11,7 @@ from datetime import datetime
 
 from torch.utils.data import DataLoader
 
-from hmpdata import AMASSDataset, AMASSConfig
+from hmpdata import AMASSDataset
 
 from model.model import PGCAGC_V2
 from model.velocity import GRUAutoencoder
@@ -156,11 +156,11 @@ if __name__ == "__main__":
         "x_birnn": True,
         "e_birnn": True,
         "use_drnn_mlp": False,
-        "nh_rnn": 128,
-        "nh_mlp": [256, 512],
+        "nh_rnn": 512,
+        "nh_mlp": [512, 1024],
     }
 
-    velocity_ae = GRUAutoencoder(nx, ny, horizon, specs)
+    velocity_ae = GRUAutoencoder(nx, ny, horizon, specs, num_layers=3)
     ckpt = args.gru_ae_ckpt
     state_dict = torch.load(ckpt)
     velocity_ae.load_state_dict(state_dict=state_dict)
@@ -174,10 +174,13 @@ if __name__ == "__main__":
     data_cfg = cfg['data']
     dataset = AMASSDataset(
         data_dir=args.data_dir,
-        config=AMASSConfig(amass_input_length=data_cfg['amass_input_length'], amass_target_length=data_cfg['amass_target_length']),
-        split_name="train",
-        data_aug=data_cfg['data_aug'],
+        actions=None,
+        split=0,
+        input_n=50,
+        output_n=25,
+        skip_rate=5
     )
+    print(f'Length of train split: {len(dataset):,} samples')
 
     train_loader = DataLoader(
         dataset=dataset,
@@ -265,8 +268,8 @@ if __name__ == "__main__":
                 loss_str = ""
                 loss_str += f"Loss small: {avg_loss_small:.4f} | "
                 loss_str += f"Loss medium: {avg_loss_medium:.4f} | "
-                loss_str += f"Loss full: {avg_loss_full:.4f} |"
-                loss_str += f"Z Loss: {avg_zloss:.4f} |"
+                loss_str += f"Loss full: {avg_loss_full:.4f} | "
+                loss_str += f"Z Loss: {avg_zloss:.4f} | "
                 print(f"Iter: {iters} {loss_str} Learning rate: {current_lr}")
                 avg_loss_small = 0.0
                 avg_loss_medium = 0.0
