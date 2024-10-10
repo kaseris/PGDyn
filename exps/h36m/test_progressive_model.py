@@ -192,7 +192,7 @@ if __name__ == "__main__":
         "nh_mlp": [256, 512],
     }
 
-    velocity_ae = GRUAutoencoder(nx, ny, horizon, specs)
+    velocity_ae = GRUAutoencoder(nx, ny, horizon, specs, num_layers=1)
     ckpt = args.ae_ckpt
     state_dict = torch.load(ckpt)
     velocity_ae.load_state_dict(state_dict=state_dict)
