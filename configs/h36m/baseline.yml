@@ -11,6 +11,9 @@ model:
   is_mask_trainable: true
   dyna_layers: [4, 4, 8]
   layer_norm_axis: "spatial"
+  nh_rnn: 128
+  nh_mlp: [512, 512]
+  lvp_num_rnn_layers: 2
 
 training:
   current_lr: 6.0e-4
