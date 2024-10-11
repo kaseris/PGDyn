@@ -121,6 +121,8 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', required=True)
     parser.add_argument('--model_cfg', required=True)
     parser.add_argument('--gru_ae_ckpt', required=True)
+    parser.add_argument('--finetune', required=False, default=0, type=int)
+    parser.add_argument('--model_ckpt', required=False, type=str)
     args = parser.parse_args()
 
     milestones = [1000, 2000]
@@ -140,6 +142,9 @@ if __name__ == "__main__":
         skeleton=skeleton,
         **model_cfg
     )
+    if args.finetune:
+        pretrained_ckpt = torch.load(args.model_ckpt)
+        model.load_state_dict(pretrained_ckpt["model"])
 
     n_params = 0
     for p in model.parameters():
@@ -221,7 +226,7 @@ if __name__ == "__main__":
             x = x.to(device)
             next_pose = next_pose.to(device)
             batch_target = batch_target.to(device)
-            out_dict = model(x, iter=iters)
+            out_dict = model(x, iter=iters + 2000)
 
             losses, losses_items = calculate_loss(
                 out_dict=out_dict, batch_input=x, target=next_pose
@@ -247,12 +252,18 @@ if __name__ == "__main__":
                 z = velocity_ae.encode(dx_src, dy_target)
                 z_loss = torch.mean(torch.norm(out_dict["z"] - z, p=2, dim=1))
                 # z_loss = (1.0 - F.cosine_similarity(z, out_dict["z"], dim=1)).mean()
+                dy_hat = out_dict["dy_hat"]
+                batch_size, target_len, channels = dy_target.shape
+                dy_target = dy_target.reshape(batch_size, target_len, channels // 3, 3).reshape(-1, 3)
+                dy_hat = dy_hat.reshape(batch_size, target_len, channels // 3, 3).reshape(-1, 3)
+                loss_vel = torch.mean(torch.norm(dy_hat * 1000. - dy_target * 1000., p=2, dim=1))
                 alpha = 0.2
-                loss = alpha * loss3 + (1 - alpha) * z_loss
+                loss = loss3 + z_loss + loss_vel
 
                 avg_loss_small += losses_items["loss_small"]
                 avg_loss_medium += losses_items["loss_medium"]
                 avg_loss_full += losses_items["loss_full"]
+                avg_dloss += loss_vel.item()
                 avg_zloss += z_loss.item()
             iters += 1
             optimizer.zero_grad()
@@ -264,16 +275,19 @@ if __name__ == "__main__":
                 avg_loss_small = avg_loss_small / train_cfg['print_every']
                 avg_loss_medium = avg_loss_medium / train_cfg['print_every']
                 avg_loss_full = avg_loss_full / train_cfg['print_every']
+                avg_dloss = avg_dloss / train_cfg["print_every"]
                 avg_zloss = avg_zloss / train_cfg['print_every']
                 loss_str = ""
                 loss_str += f"Loss small: {avg_loss_small:.4f} | "
                 loss_str += f"Loss medium: {avg_loss_medium:.4f} | "
                 loss_str += f"Loss full: {avg_loss_full:.4f} | "
+                loss_str += f"Loss vel: {avg_dloss:.4f} | "
                 loss_str += f"Z Loss: {avg_zloss:.4f} | "
                 print(f"Iter: {iters} {loss_str} Learning rate: {current_lr}")
                 avg_loss_small = 0.0
                 avg_loss_medium = 0.0
                 avg_loss_full = 0.0
+                avg_dloss = 0.0
                 avg_zloss = 0.0
 
             if iters + 1 >= max_iters:
