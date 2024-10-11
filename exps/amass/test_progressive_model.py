@@ -63,9 +63,9 @@ def predict_poses(
 ):
     out = predict_next_pose(x=sequence, model=model)
     with torch.no_grad():
-        z = model(sequence, iter=99999)["z"]
+        # z = model(sequence, iter=99999)["z"]
         dx = gen_velocity(sequence.clone())
-        dy_hat = velocity_ae.decode(dx, z)
+        dy_hat = model(sequence, iter=999999)["dy_hat"]
     poses = calculate_future_poses(out, dy_hat)
     # print(f"future poses: {poses.shape}")
     return poses
