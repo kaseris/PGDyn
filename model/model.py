@@ -35,6 +35,8 @@ class PGCAGC_V2(nn.Module):
         nh_rnn: int = 512,
         nh_mlp: List = [512, 1024],
         lvp_num_rnn_layers: int = 3,
+        lvp_n_dyna_layers: int = 4,
+        lvp_local_window: int = 3
     ) -> None:
         super().__init__()
         self.skeleton = skeleton
@@ -134,11 +136,11 @@ class PGCAGC_V2(nn.Module):
             n_joints=len(self.skeleton.full),
             skeleton_resolution="full",
             normalize_adj_mask=False,
-            local_window=3,
+            local_window=lvp_local_window,
             seq_len=self.target_len - 1,
             dims=3,
             layer_norm_axis="spatial",
-            n_dynamic_layers=4,
+            n_dynamic_layers=lvp_n_dyna_layers,
         )
         # Need to parameterize them, for H36m nhrnn=128, nh_mlp[128, 256]
         self.lvp = LatentVelocityProjection(nx=len(self.skeleton.full) * 3, ny=len(self.skeleton.full) * 3, nh_rnn=nh_rnn, nh_mlp=nh_mlp, num_layers=lvp_num_rnn_layers)
@@ -179,17 +181,18 @@ class PGCAGC_V2(nn.Module):
             # Detach just in case
             dx = gen_velocity(x.clone().detach())
             out_clone = out_step_3.clone()
-            out_clone = out_clone.detach()
+            # out_clone = out_clone.detach()
             dy_hat = gen_velocity(out_clone[:, :, : self.target_len].permute(0, 2, 1))
-            dy_hat = self.vel_dl(dy_hat.permute(0, 2, 1)).permute(0, 2, 1)
+            dy_hat_ = self.vel_dl(dy_hat.permute(0, 2, 1)).permute(0, 2, 1)
             # Estimate the latent velocity variable
-            z = self.lvp(dx, dy_hat)
+            z = self.lvp(dx, dy_hat_)
 
         return {
             "out_step_1": out_step_1,
             "out_step_2": out_step_2,
             "out_step_3": out_step_3,
             "z": z,
+            "dy_hat": dy_hat
         }
 
     def _step1(self, x: torch.Tensor):
