@@ -78,7 +78,9 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(batch_size, 1, len(skeleton.small), 3)
             .reshape(-1, 3)
         )
-        loss_small = torch.mean(torch.norm(pred_small - batch_target_small, 2, 1))
+        loss_small = torch.mean(
+            torch.norm(pred_small * 1000.0 - batch_target_small * 1000.0, 2, 1)
+        )
         loss_dict["loss_small"] = loss_small
         loss_dict_items["loss_small"] = loss_small.item()
 
@@ -89,7 +91,9 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(batch_size, 1, len(skeleton.medium), 3)
             .reshape(-1, 3)
         )
-        loss_medium = torch.mean(torch.norm(pred_medium - batch_target_medium, 2, 1))
+        loss_medium = torch.mean(
+            torch.norm(pred_medium * 1000.0 - batch_target_medium * 1000.0, 2, 1)
+        )
         loss_dict["loss_medium"] = loss_medium
         loss_dict_items["loss_medium"] = loss_medium.item()
 
@@ -100,7 +104,9 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(batch_size, 1, len(skeleton.full), 3)
             .reshape(-1, 3)
         )
-        loss_full = torch.mean(torch.norm(pred_full - batch_target_full, 2, 1))
+        loss_full = torch.mean(
+            torch.norm(pred_full * 1000.0 - batch_target_full * 1000.0, 2, 1)
+        )
         loss_dict["loss_full"] = loss_full
         loss_dict_items["loss_full"] = loss_full.item()
 
@@ -116,41 +122,48 @@ def get_loss_string(loss_dict: dict):
     return s
 
 
+def calculate_future_poses(next_pose: torch.Tensor, velocities: torch.Tensor):
+    batch_size, _, n_features = next_pose.shape
+    future_steps = velocities.shape[1]
+
+    future_poses = torch.zeros(
+        batch_size, future_steps + 1, n_features, device=next_pose.device
+    )
+    future_poses[:, 0, :] = next_pose.squeeze(1)
+    cumulative_velocities = torch.cumsum(velocities, dim=1)
+    future_poses[:, 1:, :] = next_pose + cumulative_velocities
+    return future_poses
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', required=True)
-    parser.add_argument('--model_cfg', required=True)
-    parser.add_argument('--gru_ae_ckpt', required=True)
-    parser.add_argument('--finetune', required=False, default=0, type=int)
-    parser.add_argument('--model_ckpt', required=False, type=str)
+    parser.add_argument("--data_dir", required=True)
+    parser.add_argument("--model_cfg", required=True)
+    parser.add_argument("--gru_ae_ckpt", required=True)
+    parser.add_argument("--finetune", required=False, default=0, type=int)
+    parser.add_argument("--model_ckpt", required=False, type=str)
     args = parser.parse_args()
 
-    milestones = [1000, 2000]
+    milestones = [2000, 4000]
     experiment_name = randomname.get_name()
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
     print(f'Creating new experiment: {experiment_name+"_"+now}')
     exp_path = os.path.join(f'runs/amass/{experiment_name+"_"+now}')
     os.mkdir(exp_path)
     cfg = read_config(args.model_cfg)
-    with open(os.path.join(exp_path, "config.yaml"), 'w') as f:
+    with open(os.path.join(exp_path, "config.yaml"), "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
-    model_cfg = cfg['model']
+    model_cfg = cfg["model"]
 
     skeleton = Skeleton()
-    model = PGCAGC_V2(
-        skeleton=skeleton,
-        **model_cfg
-    )
-    if args.finetune:
-        pretrained_ckpt = torch.load(args.model_ckpt)
-        model.load_state_dict(pretrained_ckpt["model"])
+    model = PGCAGC_V2(skeleton=skeleton, **model_cfg)
 
     n_params = 0
     for p in model.parameters():
         if p.requires_grad:
             n_params += p.numel()
-    print(f'# parameters: {n_params:,}')
+    print(f"# parameters: {n_params:,}")
 
     # Define the velocity autoencoder and freeze it
     nx = 54  # n_joints * 3
@@ -176,27 +189,28 @@ if __name__ == "__main__":
         if p.requires_grad:
             p.requires_grad = False
 
-    data_cfg = cfg['data']
+    data_cfg = cfg["data"]
     dataset = AMASSDataset(
         data_dir=args.data_dir,
         actions=None,
         split=0,
         input_n=50,
         output_n=25,
-        skip_rate=5
+        skip_rate=5,
+        data_aug=True,
     )
-    print(f'Length of train split: {len(dataset):,} samples')
+    print(f"Length of train split: {len(dataset):,} samples")
 
     train_loader = DataLoader(
         dataset=dataset,
-        batch_size=data_cfg['batch_size'],
+        batch_size=data_cfg["batch_size"],
         shuffle=True,
         pin_memory=True,
         drop_last=True,
         num_workers=0,
     )
-    train_cfg = cfg['training']
-    current_lr = train_cfg['current_lr']
+    train_cfg = cfg["training"]
+    current_lr = train_cfg["current_lr"]
 
     optimizer = torch.optim.Adam(
         params=model.parameters(), lr=current_lr, weight_decay=0
@@ -207,18 +221,26 @@ if __name__ == "__main__":
     model = model.to(device)
     model.train()
 
+    if args.finetune:
+        pretrained_ckpt = torch.load(args.model_ckpt)
+        model.load_state_dict(pretrained_ckpt["model"])
+        optimizer.load_state_dict(pretrained_ckpt["optimizer"])
+
     iters = 0
-    max_iters = train_cfg['max_iters']
+    if args.finetune:
+        iters = milestones[1]
+    max_iters = train_cfg["max_iters"]
 
     avg_loss_small = 0.0
     avg_loss_medium = 0.0
     avg_loss_full = 0.0
     avg_dloss = 0.0
     avg_zloss = 0.0
+    avg_loss_poses = 0.0
 
-    save_every = train_cfg['save_every']
-    lr_change_steps = train_cfg['lr_change_steps']
-    lrs = train_cfg['lrs']
+    save_every = train_cfg["save_every"]
+    lr_change_steps = train_cfg["lr_change_steps"]
+    lrs = train_cfg["lrs"]
 
     while iters < max_iters:
         for batch_input, batch_target, next_pose in train_loader:
@@ -226,7 +248,7 @@ if __name__ == "__main__":
             x = x.to(device)
             next_pose = next_pose.to(device)
             batch_target = batch_target.to(device)
-            out_dict = model(x, iter=iters + 2000)
+            out_dict = model(x, iter=iters)
 
             losses, losses_items = calculate_loss(
                 out_dict=out_dict, batch_input=x, target=next_pose
@@ -250,39 +272,68 @@ if __name__ == "__main__":
                 dx_src = gen_velocity(x.clone())
                 dy_target = gen_velocity(batch_target.clone())
                 z = velocity_ae.encode(dx_src, dy_target)
-                z_loss = torch.mean(torch.norm(out_dict["z"] - z, p=2, dim=1))
+                z_loss = torch.mean(torch.norm(out_dict["z"] - z, p=2, dim=1)) * 0.0
                 # z_loss = (1.0 - F.cosine_similarity(z, out_dict["z"], dim=1)).mean()
                 dy_hat = out_dict["dy_hat"]
+                batch_size = x.shape[0]
+                offset = x[:, -1:, :].reshape(batch_size, 1, 18, 3)
+                # all_poses = out_dict["out_step_3"][:, :, :25].reshape(batch_size, 25, 18, 3)
+                # all_poses = all_poses + offset
+                # all_poses = all_poses.reshape(-1, 3)
+                next_pose = out_dict["out_step_3"][:, :, :1].permute(0, 2, 1)
+                all_poses = calculate_future_poses(
+                    next_pose=next_pose, velocities=dy_hat
+                ) + offset.reshape(batch_size, 1, 54)
                 batch_size, target_len, channels = dy_target.shape
-                dy_target = dy_target.reshape(batch_size, target_len, channels // 3, 3).reshape(-1, 3)
-                dy_hat = dy_hat.reshape(batch_size, target_len, channels // 3, 3).reshape(-1, 3)
-                loss_vel = torch.mean(torch.norm(dy_hat * 1000. - dy_target * 1000., p=2, dim=1))
+                dy_target = dy_target.reshape(
+                    batch_size, target_len, channels // 3, 3
+                ).reshape(-1, 3)
+                dy_hat = dy_hat.reshape(batch_size, target_len, channels // 3, 3)
+                dy_hat = dy_hat.reshape(-1, 3)
+                loss_vel = (
+                    torch.mean(
+                        torch.norm(dy_hat * 1000.0 - dy_target * 1000.0, p=2, dim=1)
+                    )
+                    * 1.0
+                )
+                all_poses = all_poses.reshape(batch_size, 25, 18, 3).reshape(-1, 3)
+                all_poses_target = batch_target.reshape(batch_size, 25, 18, 3).reshape(
+                    -1, 3
+                )
+                loss_poses = torch.mean(
+                    torch.norm(
+                        all_poses - all_poses_target, p=2, dim=1
+                    )
+                )
                 alpha = 0.2
-                loss = loss3 + z_loss + loss_vel
+                loss = loss3 + loss_vel * 3.0 + loss1 + loss2 + loss_poses
 
                 avg_loss_small += losses_items["loss_small"]
                 avg_loss_medium += losses_items["loss_medium"]
                 avg_loss_full += losses_items["loss_full"]
                 avg_dloss += loss_vel.item()
                 avg_zloss += z_loss.item()
+                avg_loss_poses += loss_poses.item()
             iters += 1
             optimizer.zero_grad()
 
             loss.backward()
             optimizer.step()
 
-            if iters % train_cfg['print_every'] == 0:
-                avg_loss_small = avg_loss_small / train_cfg['print_every']
-                avg_loss_medium = avg_loss_medium / train_cfg['print_every']
-                avg_loss_full = avg_loss_full / train_cfg['print_every']
+            if iters % train_cfg["print_every"] == 0:
+                avg_loss_small = avg_loss_small / train_cfg["print_every"]
+                avg_loss_medium = avg_loss_medium / train_cfg["print_every"]
+                avg_loss_full = avg_loss_full / train_cfg["print_every"]
                 avg_dloss = avg_dloss / train_cfg["print_every"]
-                avg_zloss = avg_zloss / train_cfg['print_every']
+                avg_zloss = avg_zloss / train_cfg["print_every"]
+                avg_loss_poses = avg_loss_poses / train_cfg["print_every"]
                 loss_str = ""
                 loss_str += f"Loss small: {avg_loss_small:.4f} | "
                 loss_str += f"Loss medium: {avg_loss_medium:.4f} | "
                 loss_str += f"Loss full: {avg_loss_full:.4f} | "
                 loss_str += f"Loss vel: {avg_dloss:.4f} | "
                 loss_str += f"Z Loss: {avg_zloss:.4f} | "
+                loss_str += f"Loss all poses: {avg_loss_poses:.4f} | "
                 print(f"Iter: {iters} {loss_str} Learning rate: {current_lr}")
                 avg_loss_small = 0.0
                 avg_loss_medium = 0.0

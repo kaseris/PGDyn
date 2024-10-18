@@ -52,7 +52,7 @@ def predict_next_pose(x: torch.Tensor, model: nn.Module):
     offset = x_permuted[:, :, -1:]
     with torch.no_grad():
         out = model(x, iter=999999)["out_step_3"]
-        next_pose = out[:, :, :1] + offset
+        next_pose = out[:, :, :1]
     return next_pose.permute(0, 2, 1)
 
 
@@ -61,12 +61,13 @@ def predict_poses(
     sequence: torch.Tensor,
     velocity_ae: nn.Module,
 ):
+    offset = sequence[:, -1:, :]
     out = predict_next_pose(x=sequence, model=model)
     with torch.no_grad():
         # z = model(sequence, iter=99999)["z"]
         dx = gen_velocity(sequence.clone())
         dy_hat = model(sequence, iter=999999)["dy_hat"]
-    poses = calculate_future_poses(out, dy_hat)
+    poses = calculate_future_poses(out, dy_hat) + offset
     # print(f"future poses: {poses.shape}")
     return poses
 
