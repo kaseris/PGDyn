@@ -9,22 +9,22 @@ model:
   dims: 3
   levels: [1, 1, 1]
   is_mask_trainable: true
-  dyna_layers: [4, 4, 32]
+  dyna_layers: [48, 48, 48]
   layer_norm_axis: "spatial"
   nh_rnn: 512
   nh_mlp: [512, 1024]
   lvp_num_rnn_layers: 1
   lvp_n_dyna_layers: 8
-  lvp_local_window: 3
+  lvp_local_window: 5dd
 
 training:
   current_lr: 6.0e-4
-  max_iters: 25000
+  max_iters: 200000
   save_every: 1000
   print_every: 100
   alpha: 0.2
-  lrs: [5.0e-5, 1.0e-5]
-  lr_change_steps: [75000, 100000]
+  lrs: [1.0e-5, 1.0e-6]
+  lr_change_steps: [80000, 100000]
 
 data:
   data_aug: true
