@@ -4,6 +4,7 @@ import sys
 
 import randomname
 import yaml
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -79,7 +80,7 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(-1, 3)
         )
         loss_small = torch.mean(
-            torch.norm(pred_small * 1000.0 - batch_target_small * 1000.0, 2, 1)
+            torch.norm(pred_small - batch_target_small, 2, 1)
         )
         loss_dict["loss_small"] = loss_small
         loss_dict_items["loss_small"] = loss_small.item()
@@ -92,7 +93,7 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(-1, 3)
         )
         loss_medium = torch.mean(
-            torch.norm(pred_medium * 1000.0 - batch_target_medium * 1000.0, 2, 1)
+            torch.norm(pred_medium - batch_target_medium, 2, 1)
         )
         loss_dict["loss_medium"] = loss_medium
         loss_dict_items["loss_medium"] = loss_medium.item()
@@ -105,7 +106,7 @@ def calculate_loss(out_dict: dict, batch_input: torch.Tensor, target: torch.Tens
             .reshape(-1, 3)
         )
         loss_full = torch.mean(
-            torch.norm(pred_full * 1000.0 - batch_target_full * 1000.0, 2, 1)
+            torch.norm(pred_full - batch_target_full, 2, 1)
         )
         loss_dict["loss_full"] = loss_full
         loss_dict_items["loss_full"] = loss_full.item()
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_ckpt", required=False, type=str)
     args = parser.parse_args()
 
-    milestones = [2000, 4000]
+    milestones = [5000, 8000]
     experiment_name = randomname.get_name()
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
     print(f'Creating new experiment: {experiment_name+"_"+now}')
@@ -195,7 +196,7 @@ if __name__ == "__main__":
         actions=None,
         split=0,
         input_n=50,
-        output_n=25,
+        output_n=5,
         skip_rate=5,
         data_aug=True,
     )
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     current_lr = train_cfg["current_lr"]
 
     optimizer = torch.optim.Adam(
-        params=model.parameters(), lr=current_lr, weight_decay=0
+        params=model.parameters(), lr=current_lr, weight_decay=1e-4
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -272,7 +273,7 @@ if __name__ == "__main__":
                 dx_src = gen_velocity(x.clone())
                 dy_target = gen_velocity(batch_target.clone())
                 z = velocity_ae.encode(dx_src, dy_target)
-                z_loss = torch.mean(torch.norm(out_dict["z"] - z, p=2, dim=1)) * 0.0
+                z_loss = torch.mean(torch.norm(out_dict["z"] - z, p=2, dim=1))
                 # z_loss = (1.0 - F.cosine_similarity(z, out_dict["z"], dim=1)).mean()
                 dy_hat = out_dict["dy_hat"]
                 batch_size = x.shape[0]
@@ -292,12 +293,12 @@ if __name__ == "__main__":
                 dy_hat = dy_hat.reshape(-1, 3)
                 loss_vel = (
                     torch.mean(
-                        torch.norm(dy_hat * 1000.0 - dy_target * 1000.0, p=2, dim=1)
+                        torch.norm(dy_hat - dy_target, p=2, dim=1)
                     )
                     * 1.0
                 )
-                all_poses = all_poses.reshape(batch_size, 25, 18, 3).reshape(-1, 3)
-                all_poses_target = batch_target.reshape(batch_size, 25, 18, 3).reshape(
+                all_poses = all_poses.reshape(batch_size, 5, 18, 3).reshape(-1, 3)
+                all_poses_target = batch_target.reshape(batch_size, 5, 18, 3).reshape(
                     -1, 3
                 )
                 loss_poses = torch.mean(
@@ -306,7 +307,7 @@ if __name__ == "__main__":
                     )
                 )
                 alpha = 0.2
-                loss = loss3 + loss_vel * 3.0 + loss1 + loss2 + loss_poses
+                loss = loss3 + loss_vel + loss1 + loss2 + loss_poses + z_loss
 
                 avg_loss_small += losses_items["loss_small"]
                 avg_loss_medium += losses_items["loss_medium"]

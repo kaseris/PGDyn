@@ -156,7 +156,7 @@ class PGCAGC_V2(nn.Module):
             - n_joints: The original pose joint size (22 for H36M)
             - dims: The dimensionality that describes the joint (3)
             - seq_len: Input sequence length."""
-        out_step_1, out_step_2, out_step_3, dy_hat, z = None, None, None, None, None
+        out_step_1, out_step_2, out_step_3, dy_hat_, z = None, None, None, None, None
         # x = self.temporal_fc_in(x)
         x = self.spatial_fc_in(x)
         out_step_1 = self.arrange(
@@ -192,7 +192,7 @@ class PGCAGC_V2(nn.Module):
             "out_step_2": out_step_2,
             "out_step_3": out_step_3,
             "z": z,
-            "dy_hat": dy_hat
+            "dy_hat": dy_hat_
         }
 
     def _step1(self, x: torch.Tensor):
