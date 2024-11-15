@@ -165,11 +165,11 @@ if __name__ == "__main__":
         if p.requires_grad:
             n_params += p.numel()
     print(f"# parameters: {n_params:,}")
-
+    data_cfg = cfg["data"]
     # Define the velocity autoencoder and freeze it
     nx = 54  # n_joints * 3
     ny = 54  # n_joints * 3
-    horizon = 24
+    horizon = data_cfg["amass_target_length"]  - 1
 
     specs = {
         "x_birnn": True,
@@ -190,15 +190,15 @@ if __name__ == "__main__":
         if p.requires_grad:
             p.requires_grad = False
 
-    data_cfg = cfg["data"]
+    
     dataset = AMASSDataset(
         data_dir=args.data_dir,
         actions=None,
         split=0,
-        input_n=50,
-        output_n=5,
-        skip_rate=5,
-        data_aug=True,
+        input_n=data_cfg["amass_input_length"],
+        output_n=data_cfg["amass_target_length"],
+        skip_rate=data_cfg["skip_rate"],
+        data_aug=data_cfg["data_aug"],
     )
     print(f"Length of train split: {len(dataset):,} samples")
 
@@ -289,7 +289,7 @@ if __name__ == "__main__":
                 dy_target = dy_target.reshape(
                     batch_size, target_len, channels // 3, 3
                 ).reshape(-1, 3)
-                dy_hat = dy_hat.reshape(batch_size, target_len, channels // 3, 3)
+                dy_hat = dy_hat.reshape(batch_size, horizon, channels // 3, 3)
                 dy_hat = dy_hat.reshape(-1, 3)
                 loss_vel = (
                     torch.mean(
@@ -297,8 +297,8 @@ if __name__ == "__main__":
                     )
                     * 1.0
                 )
-                all_poses = all_poses.reshape(batch_size, 5, 18, 3).reshape(-1, 3)
-                all_poses_target = batch_target.reshape(batch_size, 5, 18, 3).reshape(
+                all_poses = all_poses.reshape(batch_size, horizon + 1, 18, 3).reshape(-1, 3)
+                all_poses_target = batch_target.reshape(batch_size, horizon + 1, 18, 3).reshape(
                     -1, 3
                 )
                 loss_poses = torch.mean(
