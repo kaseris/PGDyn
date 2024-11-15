@@ -1,33 +1,35 @@
 model:
-  milestones: [1000, 2000]
+  milestones: [5000, 8000]
   n_joints: [9, 13, 18]
   skeleton_resolution: ["small", "medium", "full"]
   normalize_adj_mask:  false
   local_window: 5
   seq_len: 50
-  target_len: 25
+  target_len: 5
   dims: 3
   levels: [1, 1, 1]
   is_mask_trainable: true
-  dyna_layers: [48, 48, 48]
+  dyna_layers: [4, 4, 8]
   layer_norm_axis: "spatial"
   nh_rnn: 512
   nh_mlp: [512, 1024]
   lvp_num_rnn_layers: 1
-  lvp_n_dyna_layers: 8
-  lvp_local_window: 5dd
+  lvp_n_dyna_layers: 4
+  lvp_local_window: 3
+  use_temporal_fc: true
 
 training:
-  current_lr: 6.0e-4
-  max_iters: 200000
+  current_lr: 3.0e-4
+  max_iters: 125000
   save_every: 1000
   print_every: 100
   alpha: 0.2
-  lrs: [1.0e-5, 1.0e-6]
-  lr_change_steps: [80000, 100000]
+  lrs: [1.0e-5, 1.0e-5]
+  lr_change_steps: [100000, 120000]
 
 data:
   data_aug: true
   amass_input_length: 50
-  amass_target_length: 25
+  amass_target_length: 5
   batch_size: 256
+  skip_rate: 5  
