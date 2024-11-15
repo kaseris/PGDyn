@@ -174,7 +174,7 @@ class TemporalFC(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.xavier_uniform_(self.fc0.weight, gain=1e-9)
+        nn.init.xavier_uniform_(self.fc0.weight, gain=1e-7)
         # nn.init.xavier_uniform_(self.fc1.weight, gain=1e-9)
 
         # nn.init.constant_(self.fc0.bias, 0)
